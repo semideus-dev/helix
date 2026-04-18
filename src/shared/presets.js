@@ -202,63 +202,194 @@ export const TIERS = {
   },
 
   // ── Tier 3 ─ Severe (score 75-100) ────────────────────────────────────────
-  // Goals: full focus mode. Dark background reduces glare. Single column forces
-  // the eye to track a predictable path. High-contrast focus ring aids keyboard
-  // navigation when motor precision is impaired.
+  // Goals: Reader Mode — extract main article content, apply soft dark theme,
+  // remove all distractions. Uses Mozilla Readability for content extraction.
   3: {
     label: "Severe",
     description:
-      "Full focus mode. Non-essential chrome hidden, main content isolated, dark mode strengthened, and media muted.",
+      "Reader Mode: extracts main article, removes all distractions, applies soft dark theme.",
     styles: `
-      /* FocusLens Tier 3 — Severe fatigue */
-      @import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');
-
+      /* FocusLens Tier 3 — Reader Mode */
       :root {
         color-scheme: dark !important;
-        --fl-bg: #161513;
-        --fl-surface: #201d1a;
-        --fl-text: #efe9de;
-        --fl-heading: #fde68a;
-        --fl-link: #5eead4;
       }
 
       html, body {
-        background: var(--fl-bg) !important;
-        color: var(--fl-text) !important;
+        background: #1A1A1A !important;
+        color: #E6E1CF !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
 
-      body.focuslens-main-mode [data-focuslens-main] {
-        max-width: 70ch !important;
-        margin: 0 auto !important;
-        padding: 22px 20px !important;
-        border-radius: 12px !important;
-        background: var(--fl-surface) !important;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.42) !important;
+      body.focuslens-reader-mode {
+        display: flex !important;
+        justify-content: center !important;
+        padding: 40px 20px !important;
+        min-height: 100vh !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
       }
 
-      body.focuslens-main-mode [data-focuslens-main] :where(p, li, td, blockquote) {
-        font-family: 'Atkinson Hyperlegible', Arial, sans-serif !important;
-        font-size: 18px !important;
-        line-height: 1.82 !important;
-        letter-spacing: 0.02em !important;
-        color: var(--fl-text) !important;
+      #focuslens-reader-root {
+        max-width: 720px !important;
+        width: 100% !important;
       }
 
-      body.focuslens-main-mode [data-focuslens-main] :where(h1, h2, h3, h4) {
-        color: var(--fl-heading) !important;
+      .focuslens-reader-article {
+        background: #1A1A1A !important;
+        color: #E6E1CF !important;
       }
 
-      body.focuslens-main-mode [data-focuslens-main] a {
-        color: var(--fl-link) !important;
+      .reader-byline {
+        font-size: 14px !important;
+        color: #A8A096 !important;
+        margin-bottom: 12px !important;
+        font-style: italic !important;
       }
 
-      body.focuslens-main-mode > :not([data-focuslens-main-chain="true"]):not(#focuslens-overlay):not(#focuslens-hud):not(script):not(style) {
-        display: none !important;
+      .reader-title {
+        font-size: 36px !important;
+        font-weight: 700 !important;
+        color: #F5E6D3 !important;
+        line-height: 1.25 !important;
+        margin: 0 0 32px 0 !important;
+        letter-spacing: -0.02em !important;
       }
 
-      img:not([role="presentation"]):not([alt=""]) {
-        opacity: 0.82 !important;
-        filter: grayscale(25%) brightness(0.86) !important;
+      .reader-content {
+        font-size: 19px !important;
+        line-height: 1.7 !important;
+        color: #E6E1CF !important;
+      }
+
+      .reader-content p {
+        margin: 0 0 24px 0 !important;
+        line-height: 1.7 !important;
+      }
+
+      .reader-content h2 {
+        font-size: 28px !important;
+        color: #F5E6D3 !important;
+        margin: 48px 0 20px 0 !important;
+        font-weight: 600 !important;
+        letter-spacing: -0.01em !important;
+      }
+
+      .reader-content h3 {
+        font-size: 22px !important;
+        color: #F5E6D3 !important;
+        margin: 36px 0 16px 0 !important;
+        font-weight: 600 !important;
+      }
+
+      .reader-content h4 {
+        font-size: 19px !important;
+        color: #E6E1CF !important;
+        margin: 28px 0 14px 0 !important;
+        font-weight: 600 !important;
+      }
+
+      .reader-content a {
+        color: #7AB8FF !important;
+        text-decoration: underline !important;
+      }
+
+      .reader-content a:hover {
+        color: #A0CEFF !important;
+      }
+
+      .reader-content img {
+        max-width: 100% !important;
+        height: auto !important;
+        border-radius: 8px !important;
+        margin: 32px 0 !important;
+        display: block !important;
+      }
+
+      .reader-content blockquote {
+        background: #2A2A2A !important;
+        border-left: 4px solid #7AB8FF !important;
+        padding: 16px 20px !important;
+        margin: 24px 0 !important;
+        font-style: italic !important;
+        color: #D4CFBD !important;
+      }
+
+      .reader-content pre {
+        background: #252525 !important;
+        padding: 16px !important;
+        border-radius: 6px !important;
+        overflow-x: auto !important;
+        margin: 24px 0 !important;
+        border: 1px solid #333 !important;
+      }
+
+      .reader-content code {
+        background: #252525 !important;
+        padding: 3px 6px !important;
+        border-radius: 3px !important;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Courier New', monospace !important;
+        font-size: 16px !important;
+        color: #E6E1CF !important;
+      }
+
+      .reader-content pre code {
+        background: transparent !important;
+        padding: 0 !important;
+      }
+
+      .reader-content ul, .reader-content ol {
+        margin: 24px 0 !important;
+        padding-left: 32px !important;
+      }
+
+      .reader-content li {
+        margin-bottom: 12px !important;
+        line-height: 1.7 !important;
+      }
+
+      .reader-content strong, .reader-content b {
+        color: #F5E6D3 !important;
+        font-weight: 600 !important;
+      }
+
+      .reader-content em, .reader-content i {
+        color: #D4CFBD !important;
+      }
+
+      .reader-content hr {
+        border: none !important;
+        border-top: 1px solid #3A3A3A !important;
+        margin: 48px 0 !important;
+      }
+
+      .reader-content figure {
+        margin: 32px 0 !important;
+      }
+
+      .reader-content figcaption {
+        font-size: 15px !important;
+        color: #A8A096 !important;
+        text-align: center !important;
+        margin-top: 12px !important;
+        font-style: italic !important;
+      }
+
+      .reader-content table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 24px 0 !important;
+      }
+
+      .reader-content th, .reader-content td {
+        padding: 10px 12px !important;
+        border: 1px solid #3A3A3A !important;
+        text-align: left !important;
+      }
+
+      .reader-content th {
+        background: #252525 !important;
+        font-weight: 600 !important;
+        color: #F5E6D3 !important;
       }
 
       * {
@@ -267,12 +398,15 @@ export const TIERS = {
         transition-duration: 0.1s !important;
       }
 
-      :focus {
-        outline: 3px solid #fcd34d !important;
-        outline-offset: 3px !important;
+      ::selection {
+        background: #4A4A4A !important;
+        color: #F5E6D3 !important;
       }
 
-      ::selection { background: #78350f; color: #fef3c7; }
+      /* Ensure overlay and HUD remain visible in reader mode */
+      #focuslens-overlay, #focuslens-hud {
+        display: block !important;
+      }
     `,
     hideSelectors: CHROME_SELECTORS,
   },

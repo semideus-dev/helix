@@ -18,6 +18,7 @@
  */
 
 import { TIERS } from "../shared/presets.js";
+import { extractArticle, buildReaderView } from "./reader.js";
 
 // ─── Module state ─────────────────────────────────────────────────────────────
 
@@ -48,6 +49,57 @@ export function applyTier(tier) {
 let _styleEl = null; // <style id="focuslens-styles">
 let _overlayEl = null; // amber tint overlay
 let _hudEl = null; // tier-3 floating HUD
+
+// ─── Reader mode state ─────────────────────────────────────────────────────────
+let _readerModeActive = false;
+let _originalBodyHTML = null;
+let _originalBodyClasses = null;
+
+// ─── Reader mode activation/deactivation ──────────────────────────────────────
+function _activateReaderMode() {
+  if (_readerModeActive) return;
+
+  // Store original body for restoration
+  _originalBodyHTML = document.body.innerHTML;
+  _originalBodyClasses = document.body.className;
+
+  const article = extractArticle();
+  if (!article) {
+    console.warn(
+      "[FocusLens] Could not extract article — skipping reader mode"
+    );
+    // Fallback: use current tier 3 behavior (we'll still apply dark mode CSS)
+    return;
+  }
+
+  const readerView = buildReaderView(article);
+  if (!readerView) return;
+
+  // Replace body content with reader view
+  document.body.innerHTML = "";
+  document.body.appendChild(_overlayEl); // Re-inject overlay
+  if (_hudEl) document.body.appendChild(_hudEl); // Re-inject HUD if exists
+  document.body.appendChild(readerView);
+  document.body.className = "focuslens-reader-mode";
+  _readerModeActive = true;
+
+  console.log("[FocusLens] Reader mode activated");
+}
+
+function _deactivateReaderMode() {
+  if (!_readerModeActive || !_originalBodyHTML) return;
+
+  document.body.innerHTML = _originalBodyHTML;
+  document.body.className = _originalBodyClasses || "";
+  _readerModeActive = false;
+  _originalBodyHTML = null;
+  _originalBodyClasses = null;
+
+  // Re-inject overlay and HUD after restoration
+  _injectShell();
+
+  console.log("[FocusLens] Reader mode deactivated");
+}
 
 // ─── Main-content detection helpers ──────────────────────────────────────────
 function _clearMainContentMarkers() {
@@ -233,6 +285,13 @@ function _doApply(tier, force) {
       el.removeAttribute("data-focuslens-hidden");
     });
     _clearMainContentMarkers();
+
+    // ── 1a. Handle reader mode (tier 3 only) ─────────────────────────────────
+    if (tier === 3) {
+      _activateReaderMode();
+    } else if (_readerModeActive) {
+      _deactivateReaderMode();
+    }
 
     // ── 2. Inject tier CSS ───────────────────────────────────────────────────
     _styleEl.innerHTML = config.styles;

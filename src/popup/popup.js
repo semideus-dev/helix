@@ -51,7 +51,7 @@ const TIER_META = {
     label: "Severe",
     cls: "tier-3",
     description:
-      "Full focus mode: non-essential chrome hidden, main content isolated, stronger dark theme.",
+      "Reader Mode: extracts main article, removes all distractions, applies soft dark theme.",
   },
 };
 
