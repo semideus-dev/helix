@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<!--
+  test/eyetest.html — FocusLens MediaPipe smoke test
+  ─────────────────────────────────────────────────────
+  PURPOSE
+  ───────
+  Verify that MediaPipe FaceMesh works in Chrome before integrating it into
+  the extension. Open this file with a local server (e.g. `npx serve .`) or
+  directly as file:// in Chrome.
+
+  NO extension APIs are used here — everything runs in plain browser JS.
+  If this works, the extension integration will work.
+
+  QUICK START
+  ───────────
+  1. cd focuslens
+  2. npx serve test      (or python3 -m http.server 8080 in test/)
+  3. Open http://localhost:8080/eyetest.html
+  4. Allow camera when prompted
+  5. You should see:
+     - Landmark dots on your face
+     - EAR values updating in real time
+     - Blink count incrementing when you blink
+     - Red/green indicator based on eye state
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FocusLens — MediaPipe Eye Test</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #111;
+        color: #eee;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px;
+        gap: 16px;
+      }
+      h1 {
+        font-size: 18px;
+        color: #f0c040;
+        letter-spacing: -0.3px;
+      }
+      p.subtitle {
+        font-size: 13px;
+        color: #888;
+        margin-top: -12px;
+      }
+
+      /* Video + canvas overlay */
+      .video-wrap {
+        position: relative;
+        width: 400px;
+        height: 300px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 2px solid #333;
+      }
+      #video,
+      #canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 400px;
+        height: 300px;
+      }
+      #video {
+        transform: scaleX(-1); /* mirror so it feels natural */
+        object-fit: cover;
+      }
+      #canvas {
+        transform: scaleX(-1); /* match the video mirror */
+      }
+
+      /* Stats panel */
+      .stats {
+        background: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 14px 20px;
+        width: 400px;
+        font-size: 13px;
+        line-height: 2;
+      }
+      .stats-row {
+        display: flex;
+        justify-content: space-between;
+      }
+      .stats-label {
+        color: #888;
+      }
+      .stats-value {
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Eye open/closed indicator */
+      .eye-indicator {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 14px;
+        transition: background 0.15s, color 0.15s;
+      }
+      .eye-indicator.open {
+        background: #14532d;
+        color: #86efac;
+      }
+      .eye-indicator.closed {
+        background: #7f1d1d;
+        color: #fca5a5;
+      }
+      .eye-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+      .eye-indicator.open .eye-dot {
+        background: #22c55e;
+      }
+      .eye-indicator.closed .eye-dot {
+        background: #ef4444;
+      }
+
+      /* Status bar */
+      #status {
+        font-size: 12px;
+        color: #888;
+        text-align: center;
+      }
+      #status.error {
+        color: #f87171;
+      }
+      #status.ok {
+        color: #86efac;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>👁 FocusLens — MediaPipe Eye Test</h1>
+    <p class="subtitle">
+      Smoke test: confirms MediaPipe FaceMesh runs before extension integration.
+    </p>
+
+    <div id="status">Loading MediaPipe from CDN…</div>
+
+    <div class="video-wrap">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="canvas" width="400" height="300"></canvas>
+    </div>
+
+    <div class="eye-indicator open" id="eye-indicator">
+      <div class="eye-dot"></div>
+      <span id="eye-state-text">Eyes open</span>
+    </div>
+
+    <div class="stats">
+      <div class="stats-row">
+        <span class="stats-label">Left EAR</span>
+        <span class="stats-value" id="stat-left-ear">—</span>
+      </div>
+      <div class="stats-row">
+        <span class="stats-label">Right EAR</span>
+        <span class="stats-value" id="stat-right-ear">—</span>
+      </div>
+      <div class="stats-row">
+        <span class="stats-label">Average EAR</span>
+        <span class="stats-value" id="stat-avg-ear">—</span>
+      </div>
+      <div class="stats-row">
+        <span class="stats-label">Blink count</span>
+        <span class="stats-value" id="stat-blink-count">0</span>
+      </div>
+      <div class="stats-row">
+        <span class="stats-label">Frames processed</span>
+        <span class="stats-value" id="stat-frames">0</span>
+      </div>
+    </div>
+
+    <!--
+    Load MediaPipe FaceMesh from CDN.
+    Version 0.4.x is the stable version compatible with @mediapipe/face_mesh npm.
+    We use the jsdelivr CDN mirror which provides reliable versioned URLs.
+  -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1632090866/camera_utils.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js"
+      crossorigin="anonymous"
+    ></script>
+
+    <script>
+      "use strict";
+
+      // ── DOM references ───────────────────────────────────────────────────────
+      const videoEl = document.getElementById("video");
+      const canvasEl = document.getElementById("canvas");
+      const ctx = canvasEl.getContext("2d");
+      const statusEl = document.getElementById("status");
+      const eyeIndicator = document.getElementById("eye-indicator");
+      const eyeStateText = document.getElementById("eye-state-text");
+      const statLeftEar = document.getElementById("stat-left-ear");
+      const statRightEar = document.getElementById("stat-right-ear");
+      const statAvgEar = document.getElementById("stat-avg-ear");
+      const statBlinks = document.getElementById("stat-blink-count");
+      const statFrames = document.getElementById("stat-frames");
+
+      // ── EAR landmark indices (same as eyetracking.js) ───────────────────────
+      const L_EYE_LEFT = 33,
+        L_EYE_RIGHT = 133;
+      const L_EYE_TOP_A = 160,
+        L_EYE_TOP_B = 158;
+      const L_EYE_BOT_A = 144,
+        L_EYE_BOT_B = 153;
+
+      const R_EYE_LEFT = 362,
+        R_EYE_RIGHT = 263;
+      const R_EYE_TOP_A = 387,
+        R_EYE_TOP_B = 385;
+      const R_EYE_BOT_A = 373,
+        R_EYE_BOT_B = 380;
+
+      const BLINK_THRESHOLD = 0.2;
+
+      // ── State ────────────────────────────────────────────────────────────────
+      let frameCount = 0;
+      let blinkCount = 0;
+      let eyeWasOpen = true;
+      let logFrames = 3; // Console.log full landmarks for first 3 frames
+
+      // ── Utility: Euclidean distance ──────────────────────────────────────────
+      function dist(a, b) {
+        return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+      }
+
+      // ── EAR for one eye ──────────────────────────────────────────────────────
+      function computeEAR(p1, p2, p3, p4, p5, p6) {
+        const v1 = dist(p2, p6);
+        const v2 = dist(p3, p5);
+        const h = dist(p1, p4);
+        if (h < 1e-6) return 0;
+        return (v1 + v2) / (2 * h);
+      }
+
+      // ── Per-frame callback ───────────────────────────────────────────────────
+      function onResults(results) {
+        frameCount++;
+        statFrames.textContent = frameCount;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+
+        if (
+          !results.multiFaceLandmarks ||
+          results.multiFaceLandmarks.length === 0
+        ) {
+          // No face — draw a hint
+          ctx.fillStyle = "rgba(255,100,50,0.7)";
+          ctx.font = "14px system-ui";
+          ctx.fillText("No face detected", 10, 24);
+          return;
+        }
+
+        const lm = results.multiFaceLandmarks[0];
+
+        // ── Draw all 468 landmarks as small dots ─────────────────────────────
+        ctx.fillStyle = "rgba(255, 210, 60, 0.7)";
+        const W = canvasEl.width;
+        const H = canvasEl.height;
+        for (const point of lm) {
+          ctx.beginPath();
+          ctx.arc(point.x * W, point.y * H, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // ── Highlight eye landmarks in a different colour ────────────────────
+        const eyeIdxs = [
+          L_EYE_LEFT,
+          L_EYE_RIGHT,
+          L_EYE_TOP_A,
+          L_EYE_TOP_B,
+          L_EYE_BOT_A,
+          L_EYE_BOT_B,
+          R_EYE_LEFT,
+          R_EYE_RIGHT,
+          R_EYE_TOP_A,
+          R_EYE_TOP_B,
+          R_EYE_BOT_A,
+          R_EYE_BOT_B,
+        ];
+        ctx.fillStyle = "#60a5fa";
+        for (const i of eyeIdxs) {
+          const p = lm[i];
+          ctx.beginPath();
+          ctx.arc(p.x * W, p.y * H, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // ── Compute EAR ──────────────────────────────────────────────────────
+        const leftEAR = computeEAR(
+          lm[L_EYE_LEFT],
+          lm[L_EYE_TOP_A],
+          lm[L_EYE_TOP_B],
+          lm[L_EYE_RIGHT],
+          lm[L_EYE_BOT_B],
+          lm[L_EYE_BOT_A]
+        );
+        const rightEAR = computeEAR(
+          lm[R_EYE_LEFT],
+          lm[R_EYE_TOP_A],
+          lm[R_EYE_TOP_B],
+          lm[R_EYE_RIGHT],
+          lm[R_EYE_BOT_B],
+          lm[R_EYE_BOT_A]
+        );
+        const avgEAR = (leftEAR + rightEAR) / 2;
+
+        // ── Update stat display ───────────────────────────────────────────────
+        statLeftEar.textContent = leftEAR.toFixed(3);
+        statRightEar.textContent = rightEAR.toFixed(3);
+        statAvgEar.textContent = avgEAR.toFixed(3);
+
+        // ── Draw EAR values on canvas ─────────────────────────────────────────
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 13px monospace";
+        ctx.fillText(`L-EAR: ${leftEAR.toFixed(3)}`, 8, 20);
+        ctx.fillText(`R-EAR: ${rightEAR.toFixed(3)}`, 8, 38);
+        ctx.fillText(`AVG:   ${avgEAR.toFixed(3)}`, 8, 56);
+
+        // ── Blink detection ───────────────────────────────────────────────────
+        const isClosed = avgEAR < BLINK_THRESHOLD;
+
+        if (eyeWasOpen && isClosed) {
+          blinkCount++;
+          statBlinks.textContent = blinkCount;
+        }
+        eyeWasOpen = !isClosed;
+
+        // ── Update indicator ──────────────────────────────────────────────────
+        if (isClosed) {
+          eyeIndicator.className = "eye-indicator closed";
+          eyeStateText.textContent = "Eyes closed";
+        } else {
+          eyeIndicator.className = "eye-indicator open";
+          eyeStateText.textContent = "Eyes open";
+        }
+
+        // ── Log full landmark array for first 3 frames ────────────────────────
+        // Useful for verifying correct landmark ordering against MediaPipe docs.
+        if (logFrames > 0) {
+          console.log(
+            `[EyeTest] Frame ${frameCount} — all landmarks (${lm.length} points):`,
+            lm
+          );
+          logFrames--;
+          if (logFrames === 0) {
+            console.log("[EyeTest] Landmark logging stopped after 3 frames.");
+          }
+        }
+      }
+
+      // ── Initialise MediaPipe ─────────────────────────────────────────────────
+      async function init() {
+        // Check that the CDN scripts loaded
+        if (typeof FaceMesh === "undefined") {
+          statusEl.className = "error";
+          statusEl.textContent =
+            "Error: MediaPipe failed to load from CDN. Check your internet connection.";
+          return;
+        }
+
+        statusEl.textContent = "Initialising FaceMesh…";
+
+        const faceMesh = new FaceMesh({
+          locateFile: (file) =>
+            `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`,
+        });
+
+        faceMesh.setOptions({
+          maxNumFaces: 1,
+          refineLandmarks: true,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        });
+
+        faceMesh.onResults(onResults);
+
+        statusEl.textContent = "Requesting camera…";
+
+        // Use MediaPipe's Camera utility for clean frame delivery at 30fps
+        if (typeof Camera !== "undefined") {
+          const camera = new Camera(videoEl, {
+            onFrame: async () => {
+              await faceMesh.send({ image: videoEl });
+            },
+            width: 640,
+            height: 480,
+          });
+
+          await camera.start();
+        } else {
+          // Fallback: getUserMedia + manual loop
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480, facingMode: "user" },
+          });
+          videoEl.srcObject = stream;
+          await videoEl.play();
+
+          (function loop() {
+            if (videoEl.readyState >= 2) {
+              faceMesh.send({ image: videoEl }).catch(console.error);
+            }
+            requestAnimationFrame(loop);
+          })();
+        }
+
+        statusEl.className = "ok";
+        statusEl.textContent = "✓ Camera active — FaceMesh running at 30fps";
+      }
+
+      // Run after scripts have loaded (window.onload ensures CDN scripts are ready)
+      window.addEventListener("load", () => {
+        init().catch((err) => {
+          statusEl.className = "error";
+          statusEl.textContent = `Error: ${err.message}`;
+          console.error("[EyeTest] Init failed:", err);
+        });
+      });
+    </script>
+  </body>
+</html>

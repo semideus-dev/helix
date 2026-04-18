@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FocusLens</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        width: 320px;
+        min-height: 440px;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        font-size: 13px;
+        color: #1a1a1a;
+        background: #f7f5f0;
+        padding: 16px;
+        user-select: none;
+      }
+
+      /* ── Header ──────────────────────────────────────────────────────── */
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .logo {
+        width: 24px;
+        height: 24px;
+        background: #f0c040;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+      }
+      .header h1 {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+      }
+      .header-right {
+        margin-left: auto;
+      }
+
+      /* Camera-active indicator */
+      #camera-indicator {
+        display: none;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: #666;
+      }
+      #camera-indicator.visible {
+        display: flex;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #e53e3e;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      /* ── Score gauge ─────────────────────────────────────────────────── */
+      .gauge-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .gauge-svg {
+        transform: rotate(-90deg);
+      }
+
+      #gauge-track {
+        fill: none;
+        stroke: #e8e3da;
+        stroke-width: 8;
+      }
+      #gauge-fill {
+        fill: none;
+        stroke: #22c55e;
+        stroke-width: 8;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.5s ease, stroke 0.4s ease;
+      }
+
+      .gauge-center {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+      }
+      .gauge-number {
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: -1px;
+      }
+      .gauge-label {
+        font-size: 10px;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-top: 2px;
+      }
+
+      .gauge-outer {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 120px;
+        height: 120px;
+      }
+
+      /* ── Tier label ──────────────────────────────────────────────────── */
+      .tier-badge {
+        margin-top: 4px;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      .tier-badge.tier-1 {
+        background: #fff8e1;
+        color: #f57f17;
+      }
+      .tier-badge.tier-2 {
+        background: #fff3e0;
+        color: #e65100;
+      }
+      .tier-badge.tier-3 {
+        background: #fce4ec;
+        color: #b71c1c;
+      }
+
+      /* ── Description ─────────────────────────────────────────────────── */
+      .description {
+        background: white;
+        border: 1px solid #e8e3da;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 12px;
+        color: #555;
+        line-height: 1.55;
+        margin-bottom: 12px;
+        min-height: 42px;
+      }
+
+      /* ── Buttons / controls ──────────────────────────────────────────── */
+      .btn {
+        display: block;
+        width: 100%;
+        padding: 9px 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, opacity 0.15s;
+        margin-bottom: 8px;
+      }
+      .btn-primary {
+        background: #1a1a1a;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #333;
+      }
+      .btn-danger {
+        background: #fce4ec;
+        color: #b71c1c;
+      }
+      .btn-danger:hover {
+        background: #f8bbd0;
+      }
+
+      /* ── Per-site toggle ─────────────────────────────────────────────── */
+      .site-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: white;
+        border: 1px solid #e8e3da;
+        border-radius: 8px;
+        padding: 9px 12px;
+        margin-bottom: 12px;
+      }
+      .site-row label {
+        font-size: 12px;
+        color: #444;
+        cursor: pointer;
+      }
+
+      /* Toggle switch */
+      .toggle {
+        position: relative;
+        width: 36px;
+        height: 20px;
+      }
+      .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-track {
+        position: absolute;
+        inset: 0;
+        background: #ccc;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .toggle input:checked + .toggle-track {
+        background: #e53e3e;
+      }
+      .toggle-track::after {
+        content: "";
+        position: absolute;
+        left: 3px;
+        top: 3px;
+        width: 14px;
+        height: 14px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.2s;
+      }
+      .toggle input:checked + .toggle-track::after {
+        transform: translateX(16px);
+      }
+
+      /* ── Error message ───────────────────────────────────────────────── */
+      #error-msg {
+        display: none;
+        color: #b71c1c;
+        font-size: 11px;
+        margin-top: -4px;
+        margin-bottom: 8px;
+        padding: 6px 10px;
+        background: #fce4ec;
+        border-radius: 6px;
+      }
+
+      /* ── Debug panel ──────────────────────────────────────────────────── */
+      .debug-panel {
+        background: #fff;
+        border: 1px dashed #d0cbc0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+      }
+      .debug-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #999;
+        margin-bottom: 8px;
+      }
+      .tier-btns {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+      }
+      .tier-btn {
+        padding: 6px 0;
+        border: 1.5px solid #d0cbc0;
+        border-radius: 6px;
+        background: #f7f5f0;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.12s, border-color 0.12s;
+      }
+      .tier-btn:hover {
+        background: #eee8db;
+      }
+      .tier-btn.active {
+        background: #f0c040;
+        border-color: #c89a00;
+        color: #1a1a1a;
+      }
+      #debug-status {
+        margin-top: 7px;
+        font-size: 11px;
+        color: #555;
+        min-height: 16px;
+      }
+
+      /* ── Footer ──────────────────────────────────────────────────────── */
+      .footer {
+        text-align: center;
+        font-size: 10px;
+        color: #aaa;
+        line-height: 1.5;
+      }
+      .footer strong {
+        color: #888;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">👁</div>
+      <h1>FocusLens</h1>
+      <div class="header-right">
+        <div id="camera-indicator">
+          <div class="dot"></div>
+          <span>Camera active</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Score Gauge -->
+    <div class="gauge-wrap">
+      <div class="gauge-outer">
+        <svg class="gauge-svg" width="120" height="120" viewBox="0 0 120 120">
+          <circle id="gauge-track" cx="60" cy="60" r="50" />
+          <circle id="gauge-fill" cx="60" cy="60" r="50" />
+        </svg>
+        <div class="gauge-center">
+          <span class="gauge-number" id="gauge-number">0</span>
+          <span class="gauge-label">fatigue</span>
+        </div>
+      </div>
+      <div class="tier-badge" id="tier-badge">Normal</div>
+    </div>
+
+    <!-- Current tier description -->
+    <div class="description" id="tier-description">
+      No changes — your fatigue score is within normal range.
+    </div>
+
+    <!-- Camera toggle -->
+    <button class="btn btn-primary" id="camera-btn">Enable eye tracking</button>
+    <div id="error-msg"></div>
+
+    <!-- Per-site toggle -->
+    <div class="site-row">
+      <label for="site-toggle">Disable on this site</label>
+      <label class="toggle">
+        <input type="checkbox" id="site-toggle" />
+        <span class="toggle-track"></span>
+      </label>
+    </div>
+
+    <!-- Debug tier override -->
+    <div class="debug-panel">
+      <div class="debug-label">🛠 Debug — force tier</div>
+      <div class="tier-btns">
+        <button class="tier-btn" data-tier="0">
+          T0<br /><small>Normal</small>
+        </button>
+        <button class="tier-btn" data-tier="1">
+          T1<br /><small>Mild</small>
+        </button>
+        <button class="tier-btn" data-tier="2">
+          T2<br /><small>Mod.</small>
+        </button>
+        <button class="tier-btn" data-tier="3">
+          T3<br /><small>Severe</small>
+        </button>
+      </div>
+      <div id="debug-status"></div>
+    </div>
+
+    <!-- Footer -->
+    <p class="footer">
+      <strong>All processing is local.</strong><br />
+      No data leaves your device.
+    </p>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

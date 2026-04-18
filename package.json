@@ -1,0 +1,21 @@
+{
+  "name": "focuslens",
+  "version": "0.1.0",
+  "description": "Cognitive fatigue-aware interface adapter — Chrome MV3 extension",
+  "private": true,
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c --watch",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "rollup": "^4.0.0",
+    "rollup-plugin-copy": "^3.4.0"
+  },
+  "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1632090866",
+    "@mediapipe/face_mesh": "^0.4.1633559619"
+  }
+}

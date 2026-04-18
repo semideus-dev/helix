@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<!--
+  src/eyetracking.html
+  ─────────────────────
+  This page runs INSIDE an invisible iframe injected by signals.js.
+  Because it is served from chrome-extension:// origin, getUserMedia()
+  works correctly — the camera permission granted to the extension covers
+  this page. Content scripts (host-page origin) cannot call getUserMedia
+  reliably; this architecture solves that.
+
+  eyetracking.bundle.js (built by Rollup Target 2) auto-starts on
+  DOMContentLoaded and postMessages EYE_FATIGUE_SIGNAL results back to
+  the parent content script via window.parent.postMessage.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        margin: 0;
+        background: transparent;
+        overflow: hidden;
+      }
+      video {
+        display: none;
+      }
+      canvas {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <video
+      id="video"
+      width="320"
+      height="240"
+      autoplay
+      muted
+      playsinline
+    ></video>
+    <canvas id="canvas" width="320" height="240"></canvas>
+    <script src="eyetracking.bundle.js"></script>
+  </body>
+</html>
